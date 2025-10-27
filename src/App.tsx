@@ -3,6 +3,7 @@ import * as echarts from "echarts";
 import "echarts/lib/chart/candlestick";
 import "echarts/lib/component/tooltip";
 import "echarts/lib/component/grid";
+import { useDebounceFn } from "ahooks";
 // import "echarts/lib/component/xAxis";
 // import "echarts/lib/component/yAxis";
 
@@ -16,6 +17,9 @@ const KLineFreeDraw = () => {
   const [lines, setLines] = useState([]); // 所有绘制的线段
   // 记录所有点
   const [point, setPoint] = useState([]);
+
+  const [tempLine, setTempLine] = useState(null); // 临时线段（随鼠标移动）
+
   // 3. 模拟K线数据
   const klineData = [
     [2320.26, 2320.26, 2287.3, 2362.94],
@@ -90,6 +94,42 @@ const KLineFreeDraw = () => {
     };
   }, []);
 
+  // 5. 坐标转换工具（像素坐标 -> 数据坐标）
+  const convertPixelToData = (pixelX, pixelY) => {
+    if (!chartInstance.current) return null;
+    const dataCoord = chartInstance.current.convertFromPixel(
+      { seriesIndex: 0 },
+      [pixelX, pixelY]
+    );
+    return {
+      x: Math.round(dataCoord[0]),
+      y: Number(dataCoord[1].toFixed(2)),
+      date: dateData[Math.round(dataCoord[0])] || "未知日期",
+    };
+  };
+
+  const { run } = useDebounceFn(
+    (params) => {
+      const { offsetX: pixelX, offsetY: pixelY } = params.event;
+      const endPoint = convertPixelToData(pixelX, pixelY);
+      if (endPoint) {
+        // 更新临时线段终点（实时跟随鼠标）
+        setTempLine({
+          start: startPoint,
+          end: endPoint,
+        });
+      }
+    },
+    {
+      wait: 5,
+    }
+  );
+  // 鼠标移动：更新临时线段
+  const handleMouseMove = (params) => {
+    if (!startPoint) return; // 未长按或无起点，不处理
+    run(params);
+  };
+
   // 5. 监听全局点击事件（任意位置点击都触发）
   useEffect(() => {
     if (!chartInstance.current) return;
@@ -155,16 +195,18 @@ const KLineFreeDraw = () => {
         // 添加线段并清空起点
         setLines((prev) => [...prev, newLine]);
         setStartPoint(null);
-        console.log("终点（数据坐标）：", formattedPoint, "线段已绘制");
+        setTempLine(null);
       }
     };
 
     const zr = chartInstance.current.getZr();
     // 绑定全局点击事件（图表内任何位置点击都会触发）
     zr.on("click", handleClick);
+    zr.on("mousemove", handleMouseMove);
 
     return () => {
       zr?.off("click", handleClick);
+      zr.off("mousemove", handleMouseMove);
     };
   }, [startPoint]);
 
@@ -200,10 +242,26 @@ const KLineFreeDraw = () => {
         },
       })),
       ...lines,
+      ...(tempLine
+        ? [
+            {
+              name: "临时线段",
+              type: "line",
+              data: [
+                [tempLine.start.x, tempLine.start.y],
+                [tempLine.end.x, tempLine.end.y],
+              ],
+              lineStyle: { color: "#ff9500", width: 2, type: "dashed" }, // 临时线段用虚线
+              symbol: "circle",
+              symbolSize: 6,
+              itemStyle: { color: "#ff9500" },
+            },
+          ]
+        : []),
     ];
 
     chartInstance.current.setOption({ series: newSeries });
-  }, [lines, klineData, point]);
+  }, [lines, klineData, point, tempLine]);
 
   // 7. 清除所有线段
   const clearAllLines = () => {
