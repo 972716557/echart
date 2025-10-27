@@ -14,7 +14,8 @@ const KLineFreeDraw = () => {
   // 2. 状态管理：起点、线段数组
   const [startPoint, setStartPoint] = useState(null); // 起点 {x: 数据x, y: 数据y, pixelX: 像素x, pixelY: 像素y}
   const [lines, setLines] = useState([]); // 所有绘制的线段
-
+  // 记录所有点
+  const [point, setPoint] = useState([]);
   // 3. 模拟K线数据
   const klineData = [
     [2320.26, 2320.26, 2287.3, 2362.94],
@@ -121,6 +122,7 @@ const KLineFreeDraw = () => {
       if (!startPoint) {
         // 第一次点击：保存起点
         setStartPoint(formattedPoint);
+        setPoint((i) => [...i, formattedPoint]);
         console.log("起点（数据坐标）：", formattedPoint);
       } else {
         // 第二次点击：生成线段
@@ -183,11 +185,25 @@ const KLineFreeDraw = () => {
           borderColor0: "#14b143",
         },
       },
+      ...point.map((item) => ({
+        name: "起点",
+        type: "scatter", // 用散点图绘制圆环
+        data: [[item.x, item.y]],
+        symbolSize: 10, // 圆环大小
+        itemStyle: {
+          color: "transparent", // 填充透明
+          borderColor: "#ff9500", // 边框颜色
+          borderWidth: 2, // 边框宽度
+        },
+        tooltip: {
+          formatter: `起点：${item.date}</br>价格：${item.y}`,
+        },
+      })),
       ...lines,
     ];
 
     chartInstance.current.setOption({ series: newSeries });
-  }, [lines, klineData]);
+  }, [lines, klineData, point]);
 
   // 7. 清除所有线段
   const clearAllLines = () => {
