@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from "react";
+import React, { useRef, useEffect, useState, use } from "react";
 import * as echarts from "echarts";
 import "echarts/lib/chart/candlestick";
 import "echarts/lib/component/tooltip";
@@ -54,6 +54,8 @@ const KLineFreeDraw = () => {
 
     // 基础K线配置
     const baseOption = {
+      animation: false, // 保留初始渲染动画
+      animationUpdate: false, // 关闭数据更新时的过渡动画（核心）
       tooltip: { trigger: "axis" },
       grid: { left: "10%", right: "10%", bottom: "15%", top: "10%" }, // 留出边距，确保点击边缘也能识别
       xAxis: {
@@ -134,6 +136,62 @@ const KLineFreeDraw = () => {
   useEffect(() => {
     if (!chartInstance.current) return;
 
+    const handleMouseOver = (params) => {
+      // 在拖拽线的时候不设置2段圆点
+      if (
+        params.componentType === "series" &&
+        params.seriesType === "line" &&
+        !startPoint
+      ) {
+        const seriesIndex = params.seriesIndex;
+
+        // 获取当前系列的数据
+        const seriesData =
+          chartInstance.current.getOption().series[seriesIndex].data;
+
+        // 计算线段的两端顶点（当前点和前一个点，或者当前点和后一个点）
+        const endpoints = [];
+
+        // 当前点
+        endpoints.push({
+          coord: [seriesData[0][0], seriesData[0][1]],
+          symbol: "circle",
+          symbolSize: 10,
+          itemStyle: {
+            color: "#fff",
+            borderColor: "#ff0000",
+            borderWidth: 2,
+          },
+        });
+        endpoints.push({
+          coord: [seriesData[1][0], seriesData[1][1]],
+          symbol: "circle",
+          symbolSize: 10,
+          itemStyle: {
+            color: "#fff",
+            borderColor: "#ff0000",
+            borderWidth: 2,
+          },
+        });
+        // 更新markPoint显示端点
+        chartInstance.current.setOption({
+          series: [
+            {
+              markPoint: {
+                data: endpoints,
+              },
+            },
+          ],
+        });
+      }
+    };
+
+    // 鼠标离开线段时，清除索引
+    const handleMouseOut = (params) => {
+      if (params.seriesType === "line" && params.seriesName !== "临时线段") {
+      }
+    };
+
     const handleClick = (params) => {
       // 获取点击位置的像素坐标（相对于图表容器的左上角）
       const { offsetX: pixelX, offsetY: pixelY } = params.event;
@@ -173,12 +231,12 @@ const KLineFreeDraw = () => {
             [startPoint.x, startPoint.y], // 起点数据坐标
             [formattedPoint.x, formattedPoint.y], // 终点数据坐标
           ],
+          triggerLineEvent: true,
           lineStyle: {
             color: "#ff9500",
             width: 2,
           },
-          symbol: "circle", // 显示端点
-          symbolSize: 6,
+          showSymbol: false,
           itemStyle: { color: "#ff9500" },
           // 线段tooltip显示数据坐标
           tooltip: {
@@ -190,11 +248,22 @@ const KLineFreeDraw = () => {
               }</br>价格：${p.y}</br>x索引：${p.x}`;
             },
           },
+          markPoint: {
+            symbol: "circle",
+            symbolSize: 8,
+            itemStyle: {
+              color: "#fff",
+              borderColor: "#ff0000",
+              borderWidth: 2,
+            },
+            data: [], // 初始为空数组
+          },
         };
 
         // 添加线段并清空起点
         setLines((prev) => [...prev, newLine]);
         setStartPoint(null);
+        setPoint([]);
         setTempLine(null);
       }
     };
@@ -202,10 +271,14 @@ const KLineFreeDraw = () => {
     const zr = chartInstance.current.getZr();
     // 绑定全局点击事件（图表内任何位置点击都会触发）
     zr.on("click", handleClick);
+    chartInstance.current.on("mouseover", handleMouseOver);
+    chartInstance.current.on("mouseout", handleMouseOut);
     zr.on("mousemove", handleMouseMove);
 
     return () => {
       zr?.off("click", handleClick);
+      chartInstance.current.off("mouseover", handleMouseOver);
+      chartInstance.current.off("mouseout", handleMouseOut);
       zr.off("mousemove", handleMouseMove);
     };
   }, [startPoint]);
@@ -241,7 +314,13 @@ const KLineFreeDraw = () => {
           formatter: `起点：${item.date}</br>价格：${item.y}`,
         },
       })),
-      ...lines,
+      ...lines.map((item) => ({
+        ...item,
+        showSymbol: false,
+        symbolSize: 8, // 圆点大小
+        itemStyle: { color: "#ff9500" },
+        symbol: "circle",
+      })),
       ...(tempLine
         ? [
             {
