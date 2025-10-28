@@ -353,6 +353,9 @@ const KLineFreeDraw = () => {
             },
           ]
         : []),
+      {
+        cursor: "default",
+      },
     ];
 
     chartInstance.current.setOption({ series: newSeries });

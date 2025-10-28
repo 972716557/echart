@@ -47,7 +47,7 @@ const Indicator = ({ callback }) => {
   const [selectedStyle, setSelectedStyle] = useState(lineStyles[0]);
   const [styleOpen, setStyleOpen] = useState(false);
 
-  const isMovableRef = useRef(false);
+  const [isDrawing, setIsDrawing] = useState(false);
 
   const startPos = useRef({ x: 0, y: 0 }); // 鼠标按下时的初始位置
   const elementOffset = useRef({ x: 0, y: 0 }); // 元素初始偏移量（相对于鼠标）
@@ -63,7 +63,7 @@ const Indicator = ({ callback }) => {
   };
 
   const handleMousemove = (e) => {
-    if (isMovableRef.current) {
+    if (isDrawing) {
       // 计算鼠标移动的偏移量
       const deltaX = e.clientX - startPos.current.x;
       const deltaY = e.clientY - startPos.current.y;
@@ -73,12 +73,12 @@ const Indicator = ({ callback }) => {
       const newY = elementOffset.current.y + deltaY;
 
       // 直接操作 DOM，通过 transform 移动元素（避免 setState 触发重渲染）
-      ref.current.style.transform = `translate(${newX - 20}px, ${newY - 54}px)`;
+      ref.current.style.transform = `translate(${newX - 20}px, ${newY - 35}px)`;
     }
   };
 
   const handleMouseUp = () => {
-    if (!isMovableRef.current || !ref.current) return;
+    if (!isDrawing || !ref.current) return;
 
     // 解析最终位置并更新状态（用于下次拖拽的初始位置）
     const transform = window.getComputedStyle(ref.current).transform;
@@ -88,13 +88,17 @@ const Indicator = ({ callback }) => {
     }
 
     // 标记结束拖拽
-    isMovableRef.current = false;
+    setIsDrawing(false);
   };
 
   useEffect(() => {
     window.addEventListener("mousemove", handleMousemove);
     window.addEventListener("mouseup", handleMouseUp);
-  }, [isMovableRef.current]);
+    return () => {
+      window.removeEventListener("mousemove", handleMousemove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [isDrawing]);
   return (
     <div
       ref={ref}
@@ -110,13 +114,16 @@ const Indicator = ({ callback }) => {
         alignItems: "center",
         gap: 8,
         transform: `translate(${finalPos.x}px, ${finalPos.y}px)`,
-        cursor: isMovableRef ? "grabbing" : "grab",
+        cursor: isDrawing ? "grabbing" : "grab",
       }}
     >
       <HolderOutlined
-        style={{ color: "#fff" }}
+        style={{
+          color: "#fff",
+          cursor: isDrawing ? "grabbing" : "grab",
+        }}
         onMouseDown={() => {
-          isMovableRef.current = true;
+          setIsDrawing(true);
         }}
       />
 
