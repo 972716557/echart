@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from "react";
+import React, { useRef, useEffect, useState, use } from "react";
 import * as echarts from "echarts";
 import "echarts/lib/chart/candlestick";
 import "echarts/lib/component/tooltip";
@@ -11,7 +11,8 @@ import {
 } from "@ant-design/icons";
 import Indicator from "./indicator";
 import "./index.css";
-import { set, uniqueId } from "lodash";
+import RectIcon from "./assets/rect";
+import { generateLine, generateRect } from "./utils";
 // import "echarts/lib/component/xAxis";
 // import "echarts/lib/component/yAxis";
 
@@ -23,6 +24,9 @@ const KLineFreeDraw = () => {
   // 2. 状态管理：起点、线段数组
   const [startPoint, setStartPoint] = useState(null); // 起点 {x: 数据x, y: 数据y, pixelX: 像素x, pixelY: 像素y}
   const [lines, setLines] = useState([]); // 所有绘制的线段
+  const [rects, setRects] = useState([]);
+  const [rectsPosition, setRectsPosition] = useState([]);
+
   // 记录所有点
   const [point, setPoint] = useState([]);
 
@@ -32,6 +36,9 @@ const KLineFreeDraw = () => {
   const [isEditing, setIsEditing] = useState(true);
 
   const [editLineKey, setEditLineKey] = useState(-1);
+
+  // 默认是线段
+  const [type, setType] = useState("line");
 
   // 3. 模拟K线数据
   const klineData = [
@@ -133,6 +140,17 @@ const KLineFreeDraw = () => {
           start: startPoint,
           end: endPoint,
         });
+        // setTempRect({
+        //   x: minX,
+        //   y: minY,
+        //   width,
+        //   height,
+        //   style: {
+        //     fill: "rgba(255, 165, 0, 0.3)",
+        //     stroke: "#ff9500",
+        //     lineWidth: 2,
+        //   },
+        // });
       }
     },
     {
@@ -242,50 +260,28 @@ const KLineFreeDraw = () => {
         setStartPoint(formattedPoint);
         setPoint((i) => [...i, formattedPoint]);
       } else {
-        // 第二次点击：生成线段
-        const newLine = {
-          id: uniqueId(),
-          name: `线段${Date.now()}`,
-          type: "line",
-          data: [
-            [startPoint.x, startPoint.y], // 起点数据坐标
-            [formattedPoint.x, formattedPoint.y], // 终点数据坐标
-          ],
-          triggerLineEvent: true,
-          lineStyle: {
-            color: "#ff9500",
-            width: 2,
-          },
-          showSymbol: false,
-          itemStyle: { color: "#ff9500" },
-          // 线段tooltip显示数据坐标
-          tooltip: {
-            formatter: (params) => {
-              const isStart = params.dataIndex === 0;
-              const p = isStart ? startPoint : formattedPoint;
-              return `${isStart ? "起点" : "终点"}</br>日期：${
-                p.date
-              }</br>价格：${p.y}</br>x索引：${p.x}`;
-            },
-          },
-          markPoint: {
-            symbol: "circle",
-            symbolSize: 8,
-            itemStyle: {
-              color: "#fff",
-              borderColor: "#ff0000",
-              borderWidth: 2,
-            },
-            data: [], // 初始为空数组
-          },
-        };
+        if (type === "rect") {
+          const tempData = {
+            width: Math.abs(pixelX - startPoint.pixelX),
+            height: Math.abs(pixelY - startPoint.pixelY),
+            x: Math.min(pixelX, startPoint.pixelX), // x轴为category类型，取整数索引
+            y: Math.min(pixelY, startPoint?.pixelY), // 价格保留两位小数
+          };
+          console.log(tempData, "tempData");
 
-        // 添加线段并清空起点
-        setLines((prev) => [...prev, newLine]);
-        setEditLineKey(lines.length);
-        setStartPoint(null);
-        setPoint([]);
-        setTempLine(null);
+          setRectsPosition((i) => [...i, tempData]);
+          setStartPoint(null);
+          setPoint([]);
+        } else {
+          // 第二次点击：生成线段
+          const newLine = generateLine(startPoint, formattedPoint);
+          // 添加线段并清空起点
+          setLines((prev) => [...prev, newLine]);
+          setEditLineKey(lines.length);
+          setStartPoint(null);
+          setPoint([]);
+          setTempLine(null);
+        }
       }
     };
 
@@ -357,10 +353,30 @@ const KLineFreeDraw = () => {
       ...lines.map((item) => ({
         ...item,
         showSymbol: false,
-        symbolSize: 8, // 圆点大小
-        itemStyle: { color: "#ff9500" },
-        symbol: "circle",
       })),
+      {
+        type: "custom", // 自定义系列类型
+        renderItem: (params, api) => {
+          // 获取当前矩形的数据（来自 rectData[params.dataIndex]）
+          const rect = api.value(0); // 从 data 中取出矩形参数
+          // 返回矩形的图形描述
+          return {
+            type: "rect", // 图形类型：矩形
+            shape: {
+              x: rect.x, // 左上角 x 坐标
+              y: rect.y, // 左上角 y 坐标
+              width: rect.width, // 宽度
+              height: rect.height, // 高度
+            },
+            style: {
+              fill: "rgba(0, 128, 0, 0.3)",
+              stroke: "#008000",
+              lineWidth: 2,
+            }, // 样式（填充、边框等）
+          };
+        },
+        data: rectsPosition.map((rect) => [rect]), // 将矩形数据传递给 renderItem（注意格式）
+      },
       ...(tempLine
         ? [
             {
@@ -476,7 +492,13 @@ const KLineFreeDraw = () => {
               setIsEditing(true);
             }}
           />
-
+          <span
+            onClick={() => {
+              setType("rect");
+            }}
+          >
+            <RectIcon />
+          </span>
           <DeleteOutlined onClick={clearAllLines} />
         </div>
         <div
