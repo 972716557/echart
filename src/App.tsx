@@ -1,16 +1,22 @@
-import React, { useRef, useEffect, useState, use } from "react";
+import React, { useRef, useEffect, useState } from "react";
 import * as echarts from "echarts";
 import "echarts/lib/chart/candlestick";
 import "echarts/lib/component/tooltip";
 import "echarts/lib/component/grid";
 import { useDebounceFn } from "ahooks";
+import {
+  DeleteOutlined,
+  EditOutlined,
+  PushpinOutlined,
+} from "@ant-design/icons";
 import Indicator from "./indicator";
+import "./index.css";
 // import "echarts/lib/component/xAxis";
 // import "echarts/lib/component/yAxis";
 
 const KLineFreeDraw = () => {
   // 1. 图表实例和容器
-  const chartRef = useRef(null);
+  const chartRef = useRef<HTMLDivElement>(null);
   const chartInstance = useRef(null);
 
   // 2. 状态管理：起点、线段数组
@@ -20,6 +26,9 @@ const KLineFreeDraw = () => {
   const [point, setPoint] = useState([]);
 
   const [tempLine, setTempLine] = useState(null); // 临时线段（随鼠标移动）
+
+  // 是否在编辑
+  const [isEditing, setIsEditing] = useState(true);
 
   // 3. 模拟K线数据
   const klineData = [
@@ -187,12 +196,6 @@ const KLineFreeDraw = () => {
       }
     };
 
-    // 鼠标离开线段时，清除索引
-    const handleMouseOut = (params) => {
-      if (params.seriesType === "line" && params.seriesName !== "临时线段") {
-      }
-    };
-
     const handleClick = (params) => {
       // 获取点击位置的像素坐标（相对于图表容器的左上角）
       const { offsetX: pixelX, offsetY: pixelY } = params.event;
@@ -273,21 +276,36 @@ const KLineFreeDraw = () => {
     // 绑定全局点击事件（图表内任何位置点击都会触发）
     zr.on("click", handleClick);
     chartInstance.current.on("mouseover", handleMouseOver);
-    chartInstance.current.on("mouseout", handleMouseOut);
+    // chartInstance.current.on("mouseout", handleMouseOut);
     zr.on("mousemove", handleMouseMove);
 
     return () => {
       zr?.off("click", handleClick);
       chartInstance.current.off("mouseover", handleMouseOver);
-      chartInstance.current.off("mouseout", handleMouseOut);
+      // chartInstance.current.off("mouseout", handleMouseOut);
       zr.off("mousemove", handleMouseMove);
     };
   }, [startPoint]);
 
+  const windowMouseMove = () => {
+    const canvas = chartRef.current?.querySelector("canvas");
+    if (isEditing) {
+      canvas?.classList.add("pencil-cursor"); // 添加铅笔光标样式
+    } else {
+      canvas?.classList.remove("pencil-cursor"); // 添加铅笔光标样式
+    }
+  };
+
+  useEffect(() => {
+    window.addEventListener("mousemove", windowMouseMove);
+    return () => {
+      window.removeEventListener("mousemove", windowMouseMove);
+    };
+  }, []);
+
   // 6. 动态更新线段
   useEffect(() => {
     if (!chartInstance.current) return;
-
     // 合并K线和所有线段
     const newSeries = [
       {
@@ -310,9 +328,6 @@ const KLineFreeDraw = () => {
           color: "transparent", // 填充透明
           borderColor: "#ff9500", // 边框颜色
           borderWidth: 2, // 边框宽度
-        },
-        tooltip: {
-          formatter: `起点：${item.date}</br>价格：${item.y}`,
         },
       })),
       ...lines.map((item) => ({
@@ -341,46 +356,53 @@ const KLineFreeDraw = () => {
     ];
 
     chartInstance.current.setOption({ series: newSeries });
-  }, [lines, klineData, point, tempLine]);
+  }, [lines.length, klineData.length, point.length, tempLine]);
 
   // 7. 清除所有线段
   const clearAllLines = () => {
     setLines([]);
+    setPoint([]);
     setStartPoint(null);
+    setTempLine(null);
   };
 
   return (
-    <div style={{ width: "100vw", height: "90vh", position: "relative" }}>
-      <div ref={chartRef} style={{ width: "100%", height: "100%" }} />
-
+    <div
+      style={{
+        width: "100vw",
+        height: "90vh",
+        position: "relative",
+      }}
+    >
       <div
         style={{
-          position: "absolute",
-          top: 20,
-          left: 20,
           display: "flex",
-          gap: 10,
+          gap: 16,
+          justifyContent: "center",
+          alignItems: "center",
         }}
       >
-        <button
-          onClick={clearAllLines}
-          style={{
-            padding: "8px 16px",
-            backgroundColor: "#6b7280",
-            color: "white",
-            border: "none",
-            borderRadius: 4,
-            cursor: "pointer",
+        <PushpinOutlined
+          onClick={() => {
+            setIsEditing(false);
           }}
-        >
-          清除所有线段
-        </button>
-        <div style={{ color: "#333", padding: "8px 0" }}>
-          {startPoint
-            ? "已选择起点，点击任意位置选择终点..."
-            : "点击任意位置选择起点..."}
-        </div>
+        />
+        <EditOutlined
+          onClick={() => {
+            setIsEditing(true);
+          }}
+        />
+
+        <DeleteOutlined onClick={clearAllLines} />
       </div>
+      <div
+        ref={chartRef}
+        className="pencil-cursor"
+        style={{
+          width: "100%",
+          height: "100%",
+        }}
+      />
     </div>
   );
 };
