@@ -4,6 +4,7 @@ import "echarts/lib/chart/candlestick";
 import "echarts/lib/component/tooltip";
 import "echarts/lib/component/grid";
 import { useDebounceFn } from "ahooks";
+import Indicator from "./indicator";
 // import "echarts/lib/component/xAxis";
 // import "echarts/lib/component/yAxis";
 
@@ -384,4 +385,12 @@ const KLineFreeDraw = () => {
   );
 };
 
-export default KLineFreeDraw;
+const App = () => {
+  return (
+    <div style={{ width: "100%", height: "100%", position: "relative" }}>
+      <Indicator />
+      <KLineFreeDraw />
+    </div>
+  );
+};
+export default App;
