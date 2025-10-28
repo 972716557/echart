@@ -1,8 +1,7 @@
-import React, { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { DeleteOutlined, HolderOutlined } from "@ant-design/icons";
 import { Popover } from "antd";
 const colors = [
-  "#FF0000",
   "#0000FF",
   "#008000",
   "#FFFF00",
@@ -26,17 +25,20 @@ const colors = [
 
 const widths = [1, 2, 3, 4];
 
-const lineStyles = [
-  "solid",
-  "dashed",
-  "dotted",
-  "double",
-  "groove",
-  "ridge",
-  "inset",
-  "outset",
-];
-const Indicator = ({ callback }) => {
+const lineStyles = ["solid", "dashed", "dotted"];
+
+interface IndicatorProps {
+  onDelete?: () => void;
+  onChangeStyle?: (style: string) => void;
+  onChangeWidth?: (width: number) => void;
+  onChangeColor?: (color: string) => void;
+}
+const Indicator = ({
+  onDelete,
+  onChangeStyle,
+  onChangeWidth,
+  onChangeColor,
+}: IndicatorProps) => {
   const ref = useRef(null);
 
   const [selectedColor, setSelectedColor] = useState(colors[0]);
@@ -55,14 +57,9 @@ const Indicator = ({ callback }) => {
 
   const handleOpenChange = (newOpen: boolean) => {
     setOpen(newOpen);
-    callback({
-      width: selectedWidth,
-      style: selectedStyle,
-      color: selectedColor,
-    });
   };
 
-  const handleMousemove = (e) => {
+  const handleMousemove = (e: MouseEvent) => {
     if (isDrawing) {
       // 计算鼠标移动的偏移量
       const deltaX = e.clientX - startPos.current.x;
@@ -143,6 +140,7 @@ const Indicator = ({ callback }) => {
                 onClick={() => {
                   setSelectedColor(color);
                   setOpen(false);
+                  onChangeColor?.(color);
                 }}
                 style={{
                   width: 20,
@@ -184,6 +182,7 @@ const Indicator = ({ callback }) => {
                 onClick={() => {
                   setSelectedWidth(width);
                   setWidthOpen(false);
+                  onChangeWidth?.(width);
                 }}
                 style={{
                   width: 20,
@@ -200,11 +199,6 @@ const Indicator = ({ callback }) => {
         open={widthOpen}
         onOpenChange={(open) => {
           setWidthOpen(open);
-          callback({
-            width: selectedWidth,
-            style: selectedStyle,
-            color: selectedColor,
-          });
         }}
       >
         <div
@@ -240,12 +234,14 @@ const Indicator = ({ callback }) => {
               <div
                 key={lineStyle}
                 onClick={() => {
+                  onChangeStyle?.(lineStyle);
                   setSelectedStyle(lineStyle);
                   setStyleOpen(false);
                 }}
                 style={{
                   width: 20,
-                  height: 0,
+                  height: 20,
+                  background: "transparent",
                   borderTop: `2px ${lineStyle} #3f3b3bff`,
                 }}
               ></div>
@@ -253,26 +249,22 @@ const Indicator = ({ callback }) => {
           </div>
         }
         title={null}
-        trigger="click"
+        trigger="hover"
         open={styleOpen}
         onOpenChange={(open) => {
           setStyleOpen(open);
-          callback({
-            width: selectedWidth,
-            style: selectedStyle,
-            color: selectedColor,
-          });
         }}
       >
         <div
           style={{
             width: 20,
-            height: 0,
+            height: 20,
+            background: "transparent",
             borderTop: `2px ${selectedStyle} #fff`,
           }}
         ></div>
       </Popover>
-      <DeleteOutlined style={{ color: "#fff" }} />
+      <DeleteOutlined style={{ color: "#fff" }} onClick={onDelete} />
     </div>
   );
 };

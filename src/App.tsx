@@ -11,6 +11,7 @@ import {
 } from "@ant-design/icons";
 import Indicator from "./indicator";
 import "./index.css";
+import { set, uniqueId } from "lodash";
 // import "echarts/lib/component/xAxis";
 // import "echarts/lib/component/yAxis";
 
@@ -29,6 +30,8 @@ const KLineFreeDraw = () => {
 
   // 是否在编辑
   const [isEditing, setIsEditing] = useState(true);
+
+  const [editLineKey, setEditLineKey] = useState(-1);
 
   // 3. 模拟K线数据
   const klineData = [
@@ -196,7 +199,20 @@ const KLineFreeDraw = () => {
       }
     };
 
+    const handleClickChart = (params) => {
+      if (!isEditing) {
+        if (params.componentType === "series" && params.seriesType === "line") {
+          const seriesIndex = params.seriesIndex;
+          setEditLineKey(seriesIndex);
+          console.log(seriesIndex, "seriesIndex");
+        }
+        return;
+      }
+    };
     const handleClick = (params) => {
+      if (!isEditing) {
+        return;
+      }
       // 获取点击位置的像素坐标（相对于图表容器的左上角）
       const { offsetX: pixelX, offsetY: pixelY } = params.event;
 
@@ -225,10 +241,10 @@ const KLineFreeDraw = () => {
         // 第一次点击：保存起点
         setStartPoint(formattedPoint);
         setPoint((i) => [...i, formattedPoint]);
-        console.log("起点（数据坐标）：", formattedPoint);
       } else {
         // 第二次点击：生成线段
         const newLine = {
+          id: uniqueId(),
           name: `线段${Date.now()}`,
           type: "line",
           data: [
@@ -266,6 +282,7 @@ const KLineFreeDraw = () => {
 
         // 添加线段并清空起点
         setLines((prev) => [...prev, newLine]);
+        setEditLineKey(lines.length);
         setStartPoint(null);
         setPoint([]);
         setTempLine(null);
@@ -275,6 +292,8 @@ const KLineFreeDraw = () => {
     const zr = chartInstance.current.getZr();
     // 绑定全局点击事件（图表内任何位置点击都会触发）
     zr.on("click", handleClick);
+    chartInstance.current.on("click", handleClickChart);
+
     chartInstance.current.on("mouseover", handleMouseOver);
     // chartInstance.current.on("mouseout", handleMouseOut);
     zr.on("mousemove", handleMouseMove);
@@ -284,10 +303,14 @@ const KLineFreeDraw = () => {
       chartInstance.current.off("mouseover", handleMouseOver);
       // chartInstance.current.off("mouseout", handleMouseOut);
       zr.off("mousemove", handleMouseMove);
+      chartInstance.current.off("click", handleClickChart);
     };
-  }, [startPoint]);
+  }, [startPoint, isEditing]);
 
   const windowMouseMove = () => {
+    if (!isEditing) {
+      return;
+    }
     const canvas = chartRef.current?.querySelector("canvas");
     if (isEditing) {
       canvas?.classList.add("pencil-cursor"); // 添加铅笔光标样式
@@ -306,6 +329,7 @@ const KLineFreeDraw = () => {
   // 6. 动态更新线段
   useEffect(() => {
     if (!chartInstance.current) return;
+
     // 合并K线和所有线段
     const newSeries = [
       {
@@ -353,13 +377,17 @@ const KLineFreeDraw = () => {
             },
           ]
         : []),
-      {
-        cursor: "default",
-      },
     ];
-
-    chartInstance.current.setOption({ series: newSeries });
-  }, [lines.length, klineData.length, point.length, tempLine]);
+    chartInstance.current.setOption(
+      {
+        series: newSeries,
+      },
+      {
+        replaceMerge: ["series"], // 明确替换series
+        // notMerge: true,
+      }
+    );
+  }, [lines, klineData.length, point.length, tempLine]);
 
   // 7. 清除所有线段
   const clearAllLines = () => {
@@ -370,52 +398,98 @@ const KLineFreeDraw = () => {
   };
 
   return (
-    <div
-      style={{
-        width: "100vw",
-        height: "90vh",
-        position: "relative",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          gap: 16,
-          justifyContent: "center",
-          alignItems: "center",
+    <div style={{ width: "100%", height: "100%", position: "relative" }}>
+      <Indicator
+        onDelete={() => {
+          const temp = [...lines];
+          temp.splice(editLineKey - 1, 1);
+          setLines(temp);
         }}
-      >
-        <PushpinOutlined
-          onClick={() => {
-            setIsEditing(false);
-          }}
-        />
-        <EditOutlined
-          onClick={() => {
-            setIsEditing(true);
-          }}
-        />
-
-        <DeleteOutlined onClick={clearAllLines} />
-      </div>
-      <div
-        ref={chartRef}
-        className="pencil-cursor"
-        style={{
-          width: "100%",
-          height: "100%",
+        onChangeColor={(color) => {
+          const data = lines.map((item, index) => {
+            if (index === editLineKey - 1) {
+              return {
+                ...item,
+                lineStyle: {
+                  ...item.lineStyle,
+                  color,
+                },
+              };
+            }
+            return item;
+          });
+          setLines(data);
+        }}
+        onChangeWidth={(width) => {
+          const data = lines.map((item, index) => {
+            if (index === editLineKey - 1) {
+              return {
+                ...item,
+                lineStyle: {
+                  ...item.lineStyle,
+                  width,
+                },
+              };
+            }
+            return item;
+          });
+          setLines(data);
+        }}
+        onChangeStyle={(style) => {
+          const data = lines.map((item, index) => {
+            if (index === editLineKey - 1) {
+              return {
+                ...item,
+                lineStyle: {
+                  ...item.lineStyle,
+                  type: style,
+                },
+              };
+            }
+            return item;
+          });
+          setLines(data);
         }}
       />
+      <div
+        style={{
+          width: "100vw",
+          height: "90vh",
+          position: "relative",
+        }}
+      >
+        <div
+          style={{
+            display: "flex",
+            gap: 16,
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+        >
+          <PushpinOutlined
+            onClick={() => {
+              setIsEditing(false);
+            }}
+          />
+          <EditOutlined
+            onClick={() => {
+              setIsEditing(true);
+            }}
+          />
+
+          <DeleteOutlined onClick={clearAllLines} />
+        </div>
+        <div
+          ref={chartRef}
+          className="pencil-cursor"
+          style={{
+            width: "100%",
+            height: "100%",
+          }}
+        />
+      </div>
     </div>
   );
 };
 
-const App = () => {
-  return (
-    <div style={{ width: "100%", height: "100%", position: "relative" }}>
-      <Indicator />
-      <KLineFreeDraw />
-    </div>
-  );
-};
-export default App;
+export default KLineFreeDraw;
