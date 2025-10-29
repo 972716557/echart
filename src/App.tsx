@@ -12,12 +12,40 @@ import {
 import Indicator from "./indicator";
 import "./index.css";
 import RectIcon from "./assets/rect";
-import { generateCircle, generateLine } from "./utils";
+import { generateCircle, generateLine, generateRect } from "./utils";
 import type { EChartsType } from "echarts";
 import type { Point } from "./interface";
-import { set, uniqueId } from "lodash";
+import { uniqueId } from "lodash";
+
+// 3. 模拟K线数据
+const klineData = [
+  [2320.26, 2320.26, 2287.3, 2362.94],
+  [2300, 2291.3, 2288.26, 2308.38],
+  [2295.35, 2346.5, 2295.35, 2346.92],
+  [2347.22, 2358.98, 2337.35, 2363.8],
+  [2358.4, 2363.9, 2351.75, 2363.9],
+  [2361.65, 2372.62, 2355.48, 2373.42],
+  [2373.42, 2330.86, 2328.07, 2373.42],
+  [2332.08, 2286.97, 2280.11, 2333.83],
+  [2287.1, 2264.93, 2261.43, 2287.1],
+  [2264.11, 2277.48, 2253.3, 2277.48],
+];
+const dateData = [
+  "2023-01-01",
+  "2023-01-02",
+  "2023-01-03",
+  "2023-01-04",
+  "2023-01-05",
+  "2023-01-06",
+  "2023-01-07",
+  "2023-01-08",
+  "2023-01-09",
+  "2023-01-10",
+];
 
 const TEMP_LINE_ID = uniqueId("line-");
+const TEMP_CIRCLE_ID = uniqueId("circle-");
+const TEMP_RECT_ID = uniqueId("rect-");
 const KLineFreeDraw = () => {
   // 1. 图表实例和容器
   const chartRef = useRef<HTMLDivElement>(null);
@@ -26,7 +54,8 @@ const KLineFreeDraw = () => {
   // 2. 状态管理：起点、线段数组
   const [startPoint, setStartPoint] = useState<Point | null>(null); // 起点 {x: 数据x, y: 数据y, pixelX: 像素x, pixelY: 像素y}
   const [lines, setLines] = useState([]); // 所有绘制的线段
-  const [rectsPosition, setRectsPosition] = useState([]);
+  const [tempRect, setTempRect] = useState(null); // 临时矩形（预览用）
+  const [confirmedRects, setConfirmedRects] = useState([]); // 已确认的矩形
 
   // 记录所有点
   const [point, setPoint] = useState([]);
@@ -43,32 +72,6 @@ const KLineFreeDraw = () => {
 
   // 默认是线段
   const [type, setType] = useState("line");
-
-  // 3. 模拟K线数据
-  const klineData = [
-    [2320.26, 2320.26, 2287.3, 2362.94],
-    [2300, 2291.3, 2288.26, 2308.38],
-    [2295.35, 2346.5, 2295.35, 2346.92],
-    [2347.22, 2358.98, 2337.35, 2363.8],
-    [2358.4, 2363.9, 2351.75, 2363.9],
-    [2361.65, 2372.62, 2355.48, 2373.42],
-    [2373.42, 2330.86, 2328.07, 2373.42],
-    [2332.08, 2286.97, 2280.11, 2333.83],
-    [2287.1, 2264.93, 2261.43, 2287.1],
-    [2264.11, 2277.48, 2253.3, 2277.48],
-  ];
-  const dateData = [
-    "2023-01-01",
-    "2023-01-02",
-    "2023-01-03",
-    "2023-01-04",
-    "2023-01-05",
-    "2023-01-06",
-    "2023-01-07",
-    "2023-01-08",
-    "2023-01-09",
-    "2023-01-10",
-  ];
 
   // 4. 初始化图表
   useEffect(() => {
@@ -123,29 +126,34 @@ const KLineFreeDraw = () => {
   const { run } = useDebounceFn(
     (params) => {
       const { offsetX: x, offsetY: y } = params.event;
+      if (type === "line") {
+        setTempLine({
+          start: {
+            x: startPoint?.x,
+            y: startPoint?.y,
+          },
+          end: {
+            x,
+            y,
+          },
+        });
+        return;
+      }
 
-      setTempLine({
-        start: {
-          x: startPoint?.x,
-          y: startPoint?.y,
-        },
-        end: {
-          x,
-          y,
-        },
-      });
-
-      // setTempRect({
-      //   x: minX,
-      //   y: minY,
-      //   width,
-      //   height,
-      //   style: {
-      //     fill: "rgba(255, 165, 0, 0.3)",
-      //     stroke: "#ff9500",
-      //     lineWidth: 2,
-      //   },
-      // });
+      const x1 = startPoint?.x,
+        y1 = startPoint?.y;
+      const x2 = x,
+        y2 = y;
+      const rect = {
+        id: TEMP_RECT_ID,
+        // 左上角坐标（取最小值确保正确定位）
+        x: Math.min(x1, x2),
+        y: Math.min(y1, y2),
+        // 宽高（取绝对值确保为正数）
+        width: Math.abs(x2 - x1),
+        height: Math.abs(y2 - y1),
+      };
+      setTempRect(rect);
     },
     {
       wait: 5,
@@ -175,36 +183,26 @@ const KLineFreeDraw = () => {
         return;
       }
       // 获取点击位置的像素坐标（相对于图表容器的左上角）
-      const { offsetX: pixelX, offsetY: pixelY } = params.event;
+      const { offsetX: x, offsetY: y } = params.event;
+      const tempPoint = { x, y };
 
-      const formattedPoint = {
-        x: pixelX,
-        y: pixelY,
-      };
       if (!startPoint) {
         // 第一次点击：保存起点
-        setStartPoint(formattedPoint);
-        setPoint((i) => [...i, formattedPoint]);
+        setStartPoint(tempPoint);
+        setPoint((i) => [...i, tempPoint]);
       } else {
+        setStartPoint(null);
+        setPoint([]);
         // 生成矩形
         if (type === "rect") {
-          const tempData = {
-            width: Math.abs(pixelX - startPoint.x),
-            height: Math.abs(pixelY - startPoint.y),
-            x: Math.min(pixelX, startPoint.x), // x轴为category类型，取整数索引
-            y: Math.min(pixelY, startPoint?.y), // 价格保留两位小数
-          };
-          setRectsPosition((i) => [...i, tempData]);
-          setStartPoint(null);
-          setPoint([]);
+          setConfirmedRects((i) => [...i, { ...tempRect, id: uniqueId() }]);
+          setTempRect(null);
         } else {
           // 第二次点击：生成线段
-          const newLine = generateLine(startPoint, formattedPoint);
+          const newLine = generateLine(startPoint, tempPoint);
           // 添加线段并清空起点
           setLines((prev) => [...prev, newLine]);
           setEditLineKey(lines.length);
-          setStartPoint(null);
-          setPoint([]);
           setTempLine(null);
         }
       }
@@ -221,7 +219,7 @@ const KLineFreeDraw = () => {
       zr.off("mousemove", handleMouseMove);
       chartInstance.current.off("click", handleClickChart);
     };
-  }, [startPoint, isEditing]);
+  }, [startPoint, isEditing, tempRect]);
 
   const windowMouseMove = () => {
     if (!isEditing) {
@@ -259,29 +257,6 @@ const KLineFreeDraw = () => {
           borderColor0: "#14b143",
         },
       },
-      {
-        type: "custom", // 自定义系列类型
-        renderItem: (params, api) => {
-          // 获取当前矩形的数据（来自 rectData[params.dataIndex]）
-          const rect = api.value(0); // 从 data 中取出矩形参数
-          // 返回矩形的图形描述
-          return {
-            type: "rect", // 图形类型：矩形
-            shape: {
-              x: rect.x, // 左上角 x 坐标
-              y: rect.y, // 左上角 y 坐标
-              width: rect.width, // 宽度
-              height: rect.height, // 高度
-            },
-            style: {
-              fill: "rgba(0, 128, 0, 0.3)",
-              stroke: "#008000",
-              lineWidth: 2,
-            }, // 样式（填充、边框等）
-          };
-        },
-        data: rectsPosition.map((rect) => [rect]), // 将矩形数据传递给 renderItem（注意格式）
-      },
     ];
 
     const graphicElements = point?.map(generateCircle);
@@ -293,6 +268,11 @@ const KLineFreeDraw = () => {
     const tempLineElement = tempLine
       ? [generateLine(tempLine.start, tempLine.end, TEMP_LINE_ID)]
       : [];
+    const tempRectElement = tempRect ? [generateRect(tempRect)] : [];
+
+    // 2. 已确认的矩形
+    const confirmedRectElements = confirmedRects.map(generateRect);
+
     chartInstance.current.setOption(
       {
         graphic: {
@@ -301,6 +281,8 @@ const KLineFreeDraw = () => {
             ...lines,
             ...tempLineElement,
             ...tempDotElement,
+            ...confirmedRectElements,
+            ...tempRectElement,
           ],
         },
         series: newSeries,
@@ -325,7 +307,14 @@ const KLineFreeDraw = () => {
         // notMerge: true,
       }
     );
-  }, [lines, klineData.length, point.length, tempLine]);
+  }, [
+    lines,
+    klineData.length,
+    point.length,
+    tempLine,
+    confirmedRects,
+    tempRect,
+  ]);
 
   // 7. 清除所有线段
   const clearAllLines = () => {

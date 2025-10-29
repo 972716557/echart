@@ -3,24 +3,22 @@ import type { Point } from "./interface";
 
 const generateRect = (data) => {
   const newRect = {
-    type: "custom", // 自定义系列类型
-    renderItem: (params, api) => {
-      // 获取当前矩形的数据（来自 rectData[params.dataIndex]）
-      const rect = api.value(0); // 从 data 中取出矩形参数
-
-      // 返回矩形的图形描述
-      return {
-        type: "rect", // 图形类型：矩形
-        shape: {
-          x: rect.x, // 左上角 x 坐标
-          y: rect.y, // 左上角 y 坐标
-          width: rect.width, // 宽度
-          height: rect.height, // 高度
-        },
-        style: rect.style, // 样式（填充、边框等）
-      };
+    $action: "replace",
+    type: "rect", // 图形类型：矩形
+    id: data.id ?? uniqueId(),
+    left: data.x, // 左上角x（像素坐标）
+    top: data.y, // 左上角y（像素坐标）
+    shape: {
+      width: data.width, // 宽度
+      height: data.height, // 高度
     },
-    data: data.map((rect) => [rect]), // 将矩形数据传递给 renderItem（注意格式）
+    style: {
+      fill: "rgba(255, 165, 0, 0.1)", // 填充半透明橙色
+      stroke: "#ff9500", // 边框色
+      lineWidth: 2, // 边框粗细
+    },
+    coordinateSystem: null,
+    z: 100, // 矩形在圆下方
   };
 
   return newRect;
