@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, use } from "react";
+import { useRef, useEffect, useState } from "react";
 import * as echarts from "echarts";
 import "echarts/lib/chart/candlestick";
 import "echarts/lib/component/tooltip";
@@ -12,25 +12,29 @@ import {
 import Indicator from "./indicator";
 import "./index.css";
 import RectIcon from "./assets/rect";
-import { generateLine, generateRect } from "./utils";
-// import "echarts/lib/component/xAxis";
-// import "echarts/lib/component/yAxis";
+import { generateCircle, generateLine } from "./utils";
+import type { EChartsType } from "echarts";
+import type { Point } from "./interface";
+import { set, uniqueId } from "lodash";
 
+const TEMP_LINE_ID = uniqueId("line-");
 const KLineFreeDraw = () => {
   // 1. 图表实例和容器
   const chartRef = useRef<HTMLDivElement>(null);
-  const chartInstance = useRef(null);
+  const chartInstance = useRef<EChartsType>(null);
 
   // 2. 状态管理：起点、线段数组
-  const [startPoint, setStartPoint] = useState(null); // 起点 {x: 数据x, y: 数据y, pixelX: 像素x, pixelY: 像素y}
+  const [startPoint, setStartPoint] = useState<Point | null>(null); // 起点 {x: 数据x, y: 数据y, pixelX: 像素x, pixelY: 像素y}
   const [lines, setLines] = useState([]); // 所有绘制的线段
-  const [rects, setRects] = useState([]);
   const [rectsPosition, setRectsPosition] = useState([]);
 
   // 记录所有点
   const [point, setPoint] = useState([]);
 
-  const [tempLine, setTempLine] = useState(null); // 临时线段（随鼠标移动）
+  const [tempLine, setTempLine] = useState<{
+    start: Point | null;
+    end: Point | null;
+  } | null>(null); // 临时线段（随鼠标移动）
 
   // 是否在编辑
   const [isEditing, setIsEditing] = useState(true);
@@ -116,42 +120,32 @@ const KLineFreeDraw = () => {
     };
   }, []);
 
-  // 5. 坐标转换工具（像素坐标 -> 数据坐标）
-  const convertPixelToData = (pixelX, pixelY) => {
-    if (!chartInstance.current) return null;
-    const dataCoord = chartInstance.current.convertFromPixel(
-      { seriesIndex: 0 },
-      [pixelX, pixelY]
-    );
-    return {
-      x: Math.round(dataCoord[0]),
-      y: Number(dataCoord[1].toFixed(2)),
-      date: dateData[Math.round(dataCoord[0])] || "未知日期",
-    };
-  };
-
   const { run } = useDebounceFn(
     (params) => {
-      const { offsetX: pixelX, offsetY: pixelY } = params.event;
-      const endPoint = convertPixelToData(pixelX, pixelY);
-      if (endPoint) {
-        // 更新临时线段终点（实时跟随鼠标）
-        setTempLine({
-          start: startPoint,
-          end: endPoint,
-        });
-        // setTempRect({
-        //   x: minX,
-        //   y: minY,
-        //   width,
-        //   height,
-        //   style: {
-        //     fill: "rgba(255, 165, 0, 0.3)",
-        //     stroke: "#ff9500",
-        //     lineWidth: 2,
-        //   },
-        // });
-      }
+      const { offsetX: x, offsetY: y } = params.event;
+
+      setTempLine({
+        start: {
+          x: startPoint?.x,
+          y: startPoint?.y,
+        },
+        end: {
+          x,
+          y,
+        },
+      });
+
+      // setTempRect({
+      //   x: minX,
+      //   y: minY,
+      //   width,
+      //   height,
+      //   style: {
+      //     fill: "rgba(255, 165, 0, 0.3)",
+      //     stroke: "#ff9500",
+      //     lineWidth: 2,
+      //   },
+      // });
     },
     {
       wait: 5,
@@ -167,62 +161,11 @@ const KLineFreeDraw = () => {
   useEffect(() => {
     if (!chartInstance.current) return;
 
-    const handleMouseOver = (params) => {
-      // 在拖拽线的时候不设置2段圆点
-      if (
-        params.componentType === "series" &&
-        params.seriesType === "line" &&
-        !startPoint
-      ) {
-        const seriesIndex = params.seriesIndex;
-
-        // 获取当前系列的数据
-        const seriesData =
-          chartInstance.current.getOption().series[seriesIndex].data;
-
-        // 计算线段的两端顶点（当前点和前一个点，或者当前点和后一个点）
-        const endpoints = [];
-
-        // 当前点
-        endpoints.push({
-          coord: [seriesData[0][0], seriesData[0][1]],
-          symbol: "circle",
-          symbolSize: 10,
-          itemStyle: {
-            color: "#fff",
-            borderColor: "#ff0000",
-            borderWidth: 2,
-          },
-        });
-        endpoints.push({
-          coord: [seriesData[1][0], seriesData[1][1]],
-          symbol: "circle",
-          symbolSize: 10,
-          itemStyle: {
-            color: "#fff",
-            borderColor: "#ff0000",
-            borderWidth: 2,
-          },
-        });
-        // 更新markPoint显示端点
-        chartInstance.current.setOption({
-          series: [
-            {
-              markPoint: {
-                data: endpoints,
-              },
-            },
-          ],
-        });
-      }
-    };
-
     const handleClickChart = (params) => {
       if (!isEditing) {
         if (params.componentType === "series" && params.seriesType === "line") {
           const seriesIndex = params.seriesIndex;
           setEditLineKey(seriesIndex);
-          console.log(seriesIndex, "seriesIndex");
         }
         return;
       }
@@ -234,41 +177,23 @@ const KLineFreeDraw = () => {
       // 获取点击位置的像素坐标（相对于图表容器的左上角）
       const { offsetX: pixelX, offsetY: pixelY } = params.event;
 
-      // 关键：将像素坐标转换为图表的实际数据坐标（x轴和y轴的值）
-      // coordSys 参数指定坐标系，这里用第一个系列（K线）的坐标系
-      const dataCoord = chartInstance.current.convertFromPixel(
-        { seriesIndex: 0 }, // 使用第0个系列（K线）的坐标系
-        [pixelX, pixelY] // 像素坐标
-      );
-
-      // dataCoord 格式：[xValue, yValue]
-      // xValue：x轴数据值（这里是日期索引，对应dateData的索引）
-      // yValue：y轴数据值（价格）
-      const [x, y] = dataCoord;
-
-      // 格式化坐标（x取整数索引，y保留两位小数）
       const formattedPoint = {
-        x: Math.round(x), // x轴为category类型，取整数索引
-        y: Number(y.toFixed(2)), // 价格保留两位小数
-        pixelX, // 像素x（用于调试，可选）
-        pixelY, // 像素y（用于调试，可选）
-        date: dateData[Math.round(x)] || "未知日期", // 对应日期（可选）
+        x: pixelX,
+        y: pixelY,
       };
-
       if (!startPoint) {
         // 第一次点击：保存起点
         setStartPoint(formattedPoint);
         setPoint((i) => [...i, formattedPoint]);
       } else {
+        // 生成矩形
         if (type === "rect") {
           const tempData = {
-            width: Math.abs(pixelX - startPoint.pixelX),
-            height: Math.abs(pixelY - startPoint.pixelY),
-            x: Math.min(pixelX, startPoint.pixelX), // x轴为category类型，取整数索引
-            y: Math.min(pixelY, startPoint?.pixelY), // 价格保留两位小数
+            width: Math.abs(pixelX - startPoint.x),
+            height: Math.abs(pixelY - startPoint.y),
+            x: Math.min(pixelX, startPoint.x), // x轴为category类型，取整数索引
+            y: Math.min(pixelY, startPoint?.y), // 价格保留两位小数
           };
-          console.log(tempData, "tempData");
-
           setRectsPosition((i) => [...i, tempData]);
           setStartPoint(null);
           setPoint([]);
@@ -289,15 +214,10 @@ const KLineFreeDraw = () => {
     // 绑定全局点击事件（图表内任何位置点击都会触发）
     zr.on("click", handleClick);
     chartInstance.current.on("click", handleClickChart);
-
-    chartInstance.current.on("mouseover", handleMouseOver);
-    // chartInstance.current.on("mouseout", handleMouseOut);
     zr.on("mousemove", handleMouseMove);
 
     return () => {
       zr?.off("click", handleClick);
-      chartInstance.current.off("mouseover", handleMouseOver);
-      // chartInstance.current.off("mouseout", handleMouseOut);
       zr.off("mousemove", handleMouseMove);
       chartInstance.current.off("click", handleClickChart);
     };
@@ -339,21 +259,6 @@ const KLineFreeDraw = () => {
           borderColor0: "#14b143",
         },
       },
-      ...point.map((item) => ({
-        name: "起点",
-        type: "scatter", // 用散点图绘制圆环
-        data: [[item.x, item.y]],
-        symbolSize: 10, // 圆环大小
-        itemStyle: {
-          color: "transparent", // 填充透明
-          borderColor: "#ff9500", // 边框颜色
-          borderWidth: 2, // 边框宽度
-        },
-      })),
-      ...lines.map((item) => ({
-        ...item,
-        showSymbol: false,
-      })),
       {
         type: "custom", // 自定义系列类型
         renderItem: (params, api) => {
@@ -377,26 +282,43 @@ const KLineFreeDraw = () => {
         },
         data: rectsPosition.map((rect) => [rect]), // 将矩形数据传递给 renderItem（注意格式）
       },
-      ...(tempLine
-        ? [
-            {
-              name: "临时线段",
-              type: "line",
-              data: [
-                [tempLine.start.x, tempLine.start.y],
-                [tempLine.end.x, tempLine.end.y],
-              ],
-              lineStyle: { color: "#ff9500", width: 2, type: "dashed" }, // 临时线段用虚线
-              symbol: "circle",
-              symbolSize: 6,
-              itemStyle: { color: "#ff9500" },
-            },
-          ]
-        : []),
     ];
+
+    const graphicElements = point?.map(generateCircle);
+
+    const tempDotElement = tempLine
+      ? [generateCircle(tempLine.end, "tempid")]
+      : [];
+
+    const tempLineElement = tempLine
+      ? [generateLine(tempLine.start, tempLine.end, TEMP_LINE_ID)]
+      : [];
     chartInstance.current.setOption(
       {
+        graphic: {
+          elements: [
+            ...graphicElements,
+            ...lines,
+            ...tempLineElement,
+            ...tempDotElement,
+          ],
+        },
         series: newSeries,
+        xAxis: {
+          type: "category",
+          data: dateData, // 时间/类别数据
+          // 固定x轴范围（例如：从第0个数据到最后一个数据）
+          min: 0, // 最小索引（或具体数据值，如 '2023-01-01'）
+          max: dateData.length - 1, // 最大索引（覆盖所有原始数据）
+          scale: false, // 关闭自动留白（避免范围扩展）
+          boundaryGap: false, // 数据贴边显示，不预留空白
+        },
+        yAxis: {
+          type: "value",
+          min: 2000, // 最小价格（根据实际数据调整）
+          max: 2500, // 最大价格（根据实际数据调整）
+          scale: false, // 关闭自动缩放
+        },
       },
       {
         replaceMerge: ["series"], // 明确替换series
