@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { DeleteOutlined, HolderOutlined } from "@ant-design/icons";
 import { Popover } from "antd";
 import type { Line } from "./interface";
+import SvgDashedLine from "./line-svg";
 const colors = [
   "#0000FF",
   "#008000",
@@ -26,14 +27,7 @@ const colors = [
 
 const widths = [1, 2, 3, 4];
 
-const lineStyles = ["solid", "dashed", "dotted"];
-
-const lineDash = [
-  [5, 5],
-  [10, 5],
-  [5, 10],
-  [10, 5, 2, 5],
-];
+const lineDash = [[], [5, 5], [10, 5], [5, 10], [10, 5, 2, 5]];
 
 interface IndicatorProps {
   onDelete?: () => void;
@@ -56,7 +50,7 @@ const Indicator = ({
   const [selectedWidth, setSelectedWidth] = useState(widths[0]);
   const [widthOpen, setWidthOpen] = useState(false);
 
-  const [selectedStyle, setSelectedStyle] = useState(lineStyles[0]);
+  const [selectedStyle, setSelectedStyle] = useState(0);
   const [styleOpen, setStyleOpen] = useState(false);
 
   const [isDrawing, setIsDrawing] = useState(false);
@@ -111,7 +105,10 @@ const Indicator = ({
     if (initialLine) {
       setSelectedWidth(initialLine?.style?.lineWidth);
       setSelectedColor(initialLine?.style?.stroke);
-      setSelectedStyle(initialLine?.style?.stroke);
+      const index = lineDash.findIndex(
+        (item) => String(item) === String(initialLine?.style?.lineDash)
+      );
+      setSelectedStyle(index);
     }
   }, [initialLine]);
   return (
@@ -248,39 +245,31 @@ const Indicator = ({
               flexDirection: "column",
             }}
           >
-            {lineStyles.map((lineStyle, index) => (
+            {lineDash.map((lineStyle, index) => (
               <div
-                key={lineStyle}
+                key={index}
+                style={{ padding: 4 }}
                 onClick={() => {
-                  onChangeStyle?.(lineDash[index]);
-                  setSelectedStyle(lineStyle);
+                  onChangeStyle?.(lineStyle);
+                  setSelectedStyle(index);
                   setStyleOpen(false);
                 }}
-                style={{
-                  width: 20,
-                  height: 20,
-                  background: "transparent",
-                  borderTop: `2px ${lineStyle} #3f3b3bff`,
-                }}
-              ></div>
+              >
+                <SvgDashedLine lineDash={lineStyle} stroke="#000" />
+              </div>
             ))}
           </div>
         }
         title={null}
-        trigger="hover"
+        trigger="click"
         open={styleOpen}
         onOpenChange={(open) => {
           setStyleOpen(open);
         }}
       >
-        <div
-          style={{
-            width: 20,
-            height: 20,
-            background: "transparent",
-            borderTop: `2px ${selectedStyle} #fff`,
-          }}
-        ></div>
+        <div style={{ padding: 4 }}>
+          <SvgDashedLine lineDash={lineDash[selectedStyle]} />
+        </div>
       </Popover>
       <DeleteOutlined style={{ color: "#fff" }} onClick={onDelete} />
     </div>
