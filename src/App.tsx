@@ -4,18 +4,23 @@ import "echarts/lib/chart/candlestick";
 import "echarts/lib/component/tooltip";
 import "echarts/lib/component/grid";
 import { useDebounceFn } from "ahooks";
-import {
-  DeleteOutlined,
-  EditOutlined,
-  PushpinOutlined,
-} from "@ant-design/icons";
+import { DeleteOutlined, EditOutlined } from "@ant-design/icons";
 import Indicator from "./indicator";
 import "./index.css";
 import RectIcon from "./assets/rect";
 import { generateCircle, generateLine, generateRect } from "./utils";
-import type { EChartsType } from "echarts";
-import type { Rect, Point, Type, Line, TempLine } from "./interface";
+import type { ECElementEvent, EChartsType } from "echarts";
+import type {
+  Rect,
+  Point,
+  Type,
+  Line,
+  TempLine,
+  ChartClickParams,
+} from "./interface";
 import { uniqueId } from "lodash";
+import LineIcon from "./assets/line";
+import Mouse from "./assets/mouse";
 
 // 3. 模拟K线数据
 const klineData = [
@@ -159,7 +164,7 @@ const KLineFreeDraw = () => {
     }
   );
   // 鼠标移动：更新临时线段
-  const handleMouseMove = (params) => {
+  const handleMouseMove = (params: ECElementEvent) => {
     run(params);
   };
 
@@ -167,7 +172,7 @@ const KLineFreeDraw = () => {
   useEffect(() => {
     if (!chartInstance.current) return;
     // 监听是否点击了图
-    const handleClickChart = (params) => {
+    const handleClickChart = (params: ECElementEvent) => {
       if (!isEditing) {
         if (params.componentType === "series" && params.seriesType === "line") {
           const seriesIndex = params.seriesIndex;
@@ -176,14 +181,14 @@ const KLineFreeDraw = () => {
         return;
       }
     };
-    // 监听是否点击了画布
-    const handleClick = (params: ZRMouseEvent) => {
-      if (!isEditing) {
+
+    const handleClick = (params: ChartClickParams): void => {
+      if (!isEditing || !chartInstance.current) {
         return;
       }
       // 获取点击位置的像素坐标（相对于图表容器的左上角）
       const { offsetX: x, offsetY: y } = params.event;
-      const tempPoint = { x, y };
+      const tempPoint: Point = { x, y };
 
       if (!startPoint) {
         // 第一次点击：保存起点
@@ -216,7 +221,7 @@ const KLineFreeDraw = () => {
     return () => {
       zr?.off("click", handleClick);
       zr.off("mousemove", handleMouseMove);
-      chartInstance.current.off("click", handleClickChart);
+      chartInstance.current?.off("click", handleClickChart);
     };
   }, [startPoint, isEditing, tempRect]);
 
@@ -274,7 +279,9 @@ const KLineFreeDraw = () => {
 
     chartInstance.current.setOption(
       {
+        animation: false,
         graphic: {
+          $action: "replace",
           elements: [
             ...graphicElements,
             ...lines,
@@ -296,14 +303,13 @@ const KLineFreeDraw = () => {
         },
         yAxis: {
           type: "value",
-          min: 2000, // 最小价格（根据实际数据调整）
-          max: 2500, // 最大价格（根据实际数据调整）
+          min: 2200, // 最小价格（根据实际数据调整）
+          max: 2400, // 最大价格（根据实际数据调整）
           scale: false, // 关闭自动缩放
         },
       },
       {
-        replaceMerge: ["series"], // 明确替换series
-        // notMerge: true,
+        notMerge: true,
       }
     );
   }, [
@@ -316,11 +322,13 @@ const KLineFreeDraw = () => {
   ]);
 
   // 7. 清除所有线段
-  const clearAllLines = () => {
+  const clearAll = () => {
     setLines([]);
     setPoint([]);
     setStartPoint(null);
     setTempLine(null);
+    setConfirmedRects([]);
+    setTempRect(null);
   };
 
   return (
@@ -392,7 +400,7 @@ const KLineFreeDraw = () => {
             alignItems: "center",
           }}
         >
-          <PushpinOutlined
+          <Mouse
             onClick={() => {
               setIsEditing(false);
             }}
@@ -402,14 +410,17 @@ const KLineFreeDraw = () => {
               setIsEditing(true);
             }}
           />
-          <span
+          <LineIcon
+            onClick={() => {
+              setType("line");
+            }}
+          />
+          <RectIcon
             onClick={() => {
               setType("rect");
             }}
-          >
-            <RectIcon />
-          </span>
-          <DeleteOutlined onClick={clearAllLines} />
+          />
+          <DeleteOutlined onClick={clearAll} />
         </div>
         <div
           ref={chartRef}

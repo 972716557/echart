@@ -36,3 +36,16 @@ export interface TempLine {
   start: Point;
   end: Point;
 }
+
+// 监听是否点击了画布
+export interface ZRMouseEvent {
+  offsetX: number;
+  offsetY: number;
+  // 其它可能的字段（如需要可扩展）
+  [key: string]: unknown;
+}
+
+export interface ChartClickParams {
+  event: ZRMouseEvent;
+  [key: string]: unknown;
+}

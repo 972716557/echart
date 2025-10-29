@@ -18,7 +18,7 @@ const generateRect = (data) => {
       lineWidth: 2, // 边框粗细
     },
     coordinateSystem: null,
-    z: 100, // 矩形在圆下方
+    z: 10, // 矩形在圆下方
   };
 
   return newRect;
@@ -26,6 +26,7 @@ const generateRect = (data) => {
 
 const generateLine = (start: Point, end: Point, id?: string): Line => {
   const newLine = {
+    $action: "replace",
     id: id || uniqueId(),
     type: "line",
     // 线段的起点和终点（像素坐标）
@@ -47,6 +48,7 @@ const generateLine = (start: Point, end: Point, id?: string): Line => {
 };
 
 const generateCircle = (dot, id) => ({
+  $action: "replace",
   id: id || uniqueId(),
   type: "circle", // 图形类型：圆形
   left: dot.x - 6, // 像素x坐标（相对于图表容器）
