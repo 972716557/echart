@@ -1,5 +1,6 @@
 import { uniqueId } from "lodash";
 import type { Line, Point } from "./interface";
+import type { ECElementEvent } from "echarts";
 
 const generateRect = (data) => {
   const newRect = {
@@ -47,7 +48,7 @@ const generateLine = (start: Point, end: Point, id?: string): Line => {
   return newLine;
 };
 
-const generateCircle = (dot, id) => ({
+const generateCircle = (dot: { x: number; y: number }, id?: string) => ({
   $action: "replace",
   id: id || uniqueId(),
   type: "circle", // 图形类型：圆形
@@ -64,48 +65,30 @@ const generateCircle = (dot, id) => ({
   },
   coordinateSystem: null,
 });
-// 5. 坐标转换工具（像素坐标 -> 数据坐标）
-const convertPixelToData = (pixelX: number, pixelY: number) => {
-  if (!chartInstance.current) return null;
-  const dataCoord = chartInstance.current.convertFromPixel({ seriesIndex: 0 }, [
-    pixelX,
-    pixelY,
-  ]);
-  return {
-    x: Math.round(dataCoord[0]),
-    y: Number(dataCoord[1].toFixed(2)),
-  };
-};
 
-// 辅助函数：判断鼠标是否靠近线段（简化的碰撞检测）
-const isPointNearLine = (mouseParams, line) => {
-  const { offsetX: mx, offsetY: my } = mouseParams;
-  const { x: x1, y: y1 } = line.start;
-  const { x: x2, y: y2 } = line.end;
+// 2. 辅助函数：判断鼠标是否靠近线段（碰撞检测）
+const isPointNearLine = (mouseParams: ECElementEvent, line: Line) => {
+  const { offsetX: mx, offsetY: my } = mouseParams; // 鼠标像素坐标
+  const { x1, y1, x2, y2 } = line.shape;
 
-  // 计算鼠标到线段的距离（简化版，实际可优化精度）
+  // 计算鼠标到线段的垂直距离（简化版）
   const A = mx - x1;
   const B = my - y1;
   const C = x2 - x1;
   const D = y2 - y1;
-  const dot = A * C + B * D;
-  const lenSq = C * C + D * D;
-  let param = -1;
-  if (lenSq !== 0) param = dot / lenSq;
-  let xx, yy;
-  if (param < 0) {
-    xx = x1;
-    yy = y1;
-  } else if (param > 1) {
-    xx = x2;
-    yy = y2;
-  } else {
-    xx = x1 + param * C;
-    yy = y1 + param * D;
-  }
-  const dx = mx - xx;
-  const dy = my - yy;
-  return dx * dx + dy * dy < 25; // 距离小于5px视为悬浮（25=5²）
+  const dotProduct = A * C + B * D; // 点积
+  const lineLengthSquared = C * C + D * D; // 线段长度的平方
+  let t = dotProduct / lineLengthSquared;
+
+  // 限制 t 在 [0, 1] 范围内（线段两端的延长线不计入）
+  t = Math.max(0, Math.min(1, t));
+  // 计算线段上最近点的坐标
+  const nearestX = x1 + t * C;
+  const nearestY = y1 + t * D;
+  // 计算鼠标到最近点的距离
+  const distanceSquared = (mx - nearestX) ** 2 + (my - nearestY) ** 2;
+  // 距离小于 5px（25 = 5²）视为悬浮
+  return distanceSquared < 25;
 };
 
-export { generateRect, generateLine, generateCircle, convertPixelToData };
+export { generateRect, generateLine, generateCircle, isPointNearLine };

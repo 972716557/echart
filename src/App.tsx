@@ -8,7 +8,12 @@ import { DeleteOutlined, EditOutlined } from "@ant-design/icons";
 import Indicator from "./indicator";
 import "./index.css";
 import RectIcon from "./assets/rect";
-import { generateCircle, generateLine, generateRect } from "./utils";
+import {
+  generateCircle,
+  generateLine,
+  generateRect,
+  isPointNearLine,
+} from "./utils";
 import type { ECElementEvent, EChartsType } from "echarts";
 import type {
   Rect,
@@ -71,7 +76,7 @@ const KLineFreeDraw = () => {
   // 是否在编辑
   const [isEditing, setIsEditing] = useState(true);
 
-  const [editLineKey, setEditLineKey] = useState(-1);
+  const [hoveredLineId, setHoveredLineId] = useState<string | null>(null); // 当前悬浮的线段ID
 
   // 默认是线段
   const [type, setType] = useState<Type>("line");
@@ -128,6 +133,7 @@ const KLineFreeDraw = () => {
 
   const { run } = useDebounceFn(
     (params) => {
+      handleMouseChartMove(params);
       if (!startPoint) return; // 未长按或无起点，不处理
       const { offsetX: x, offsetY: y } = params.event;
       if (type === "line") {
@@ -168,6 +174,20 @@ const KLineFreeDraw = () => {
     run(params);
   };
 
+  const handleMouseChartMove = (params: ECElementEvent) => {
+    let isHovered = false;
+    // 遍历所有线段，判断鼠标是否靠近
+    lines.forEach((line) => {
+      if (isPointNearLine(params, line)) {
+        setHoveredLineId(line.id); // 记录悬浮线段ID
+        isHovered = true;
+        return;
+      }
+    });
+    // 未悬浮任何线段，清空状态
+    if (!isHovered) setHoveredLineId(null);
+  };
+
   // 5. 监听全局点击事件（任意位置点击都触发）
   useEffect(() => {
     if (!chartInstance.current) return;
@@ -176,7 +196,6 @@ const KLineFreeDraw = () => {
       if (!isEditing) {
         if (params.componentType === "series" && params.seriesType === "line") {
           const seriesIndex = params.seriesIndex;
-          setEditLineKey(seriesIndex);
         }
         return;
       }
@@ -193,10 +212,11 @@ const KLineFreeDraw = () => {
       if (!startPoint) {
         // 第一次点击：保存起点
         setStartPoint(tempPoint);
-        setPoint((i) => [...i, tempPoint]);
+        setPoint(() => [tempPoint]);
       } else {
         setStartPoint(null);
-        setPoint([]);
+        setPoint((i) => [...i, tempPoint]);
+
         // 生成矩形
         if (type === "rect") {
           setConfirmedRects((i) => [...i, { ...tempRect, id: uniqueId() }]);
@@ -206,7 +226,6 @@ const KLineFreeDraw = () => {
           const newLine = generateLine(startPoint, tempPoint);
           // 添加线段并清空起点
           setLines((prev) => [...prev, newLine]);
-          setEditLineKey(lines.length);
           setTempLine(null);
         }
       }
@@ -223,7 +242,7 @@ const KLineFreeDraw = () => {
       zr.off("mousemove", handleMouseMove);
       chartInstance.current?.off("click", handleClickChart);
     };
-  }, [startPoint, isEditing, tempRect]);
+  }, [startPoint, isEditing, tempRect, lines]);
 
   const windowMouseMove = () => {
     if (!isEditing) {
@@ -274,6 +293,15 @@ const KLineFreeDraw = () => {
       : [];
     const tempRectElement = tempRect ? [generateRect(tempRect)] : [];
 
+    // 判断是否与线相交
+    const hoveredLine = lines.find((line) => line.id === hoveredLineId);
+    const hoverCircleElement = hoveredLine
+      ? [
+          generateCircle({ x: hoveredLine.shape.x1, y: hoveredLine.shape.y1 }),
+          generateCircle({ x: hoveredLine.shape.x2, y: hoveredLine.shape.y2 }),
+        ]
+      : [];
+
     // 2. 已确认的矩形
     const confirmedRectElements = confirmedRects.map(generateRect);
 
@@ -289,6 +317,7 @@ const KLineFreeDraw = () => {
             ...tempDotElement,
             ...confirmedRectElements,
             ...tempRectElement,
+            ...hoverCircleElement,
           ],
         },
         series: newSeries,
@@ -319,6 +348,7 @@ const KLineFreeDraw = () => {
     tempLine,
     confirmedRects,
     tempRect,
+    hoveredLineId,
   ]);
 
   // 7. 清除所有线段
@@ -336,50 +366,22 @@ const KLineFreeDraw = () => {
       <Indicator
         onDelete={() => {
           const temp = [...lines];
-          temp.splice(editLineKey - 1, 1);
           setLines(temp);
         }}
         onChangeColor={(color) => {
           const data = lines.map((item, index) => {
-            if (index === editLineKey - 1) {
-              return {
-                ...item,
-                lineStyle: {
-                  ...item.lineStyle,
-                  color,
-                },
-              };
-            }
             return item;
           });
           setLines(data);
         }}
         onChangeWidth={(width) => {
           const data = lines.map((item, index) => {
-            if (index === editLineKey - 1) {
-              return {
-                ...item,
-                lineStyle: {
-                  ...item.lineStyle,
-                  width,
-                },
-              };
-            }
             return item;
           });
           setLines(data);
         }}
         onChangeStyle={(style) => {
           const data = lines.map((item, index) => {
-            if (index === editLineKey - 1) {
-              return {
-                ...item,
-                lineStyle: {
-                  ...item.lineStyle,
-                  type: style,
-                },
-              };
-            }
             return item;
           });
           setLines(data);
@@ -403,6 +405,7 @@ const KLineFreeDraw = () => {
           <Mouse
             onClick={() => {
               setIsEditing(false);
+              setPoint([]);
             }}
           />
           <EditOutlined
