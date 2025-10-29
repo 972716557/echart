@@ -1,5 +1,5 @@
 import { uniqueId } from "lodash";
-import type { Point } from "./interface";
+import type { Line, Point } from "./interface";
 
 const generateRect = (data) => {
   const newRect = {
@@ -24,7 +24,7 @@ const generateRect = (data) => {
   return newRect;
 };
 
-const generateLine = (start: Point, end: Point, id?: string) => {
+const generateLine = (start: Point, end: Point, id?: string): Line => {
   const newLine = {
     id: id || uniqueId(),
     type: "line",
@@ -42,17 +42,7 @@ const generateLine = (start: Point, end: Point, id?: string) => {
       lineWidth: 2,
     },
     coordinateSystem: null, // 像素级定位（不依赖坐标轴）
-    // markPoint: {
-    //   symbol: "circle",
-    //   symbolSize: 8,
-    //   itemStyle: {
-    //     color: "#fff",
-    //     borderColor: "#ff0000",
-    //     borderWidth: 2,
-    //   },
-    //   data: [], // 初始为空数组
-    // },
-  };
+  } as Line;
   return newLine;
 };
 

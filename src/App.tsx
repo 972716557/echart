@@ -14,7 +14,7 @@ import "./index.css";
 import RectIcon from "./assets/rect";
 import { generateCircle, generateLine, generateRect } from "./utils";
 import type { EChartsType } from "echarts";
-import type { Point } from "./interface";
+import type { Rect, Point, Type, Line, TempLine } from "./interface";
 import { uniqueId } from "lodash";
 
 // 3. 模拟K线数据
@@ -47,23 +47,21 @@ const TEMP_LINE_ID = uniqueId("line-");
 const TEMP_CIRCLE_ID = uniqueId("circle-");
 const TEMP_RECT_ID = uniqueId("rect-");
 const KLineFreeDraw = () => {
-  // 1. 图表实例和容器
   const chartRef = useRef<HTMLDivElement>(null);
   const chartInstance = useRef<EChartsType>(null);
 
   // 2. 状态管理：起点、线段数组
   const [startPoint, setStartPoint] = useState<Point | null>(null); // 起点 {x: 数据x, y: 数据y, pixelX: 像素x, pixelY: 像素y}
-  const [lines, setLines] = useState([]); // 所有绘制的线段
-  const [tempRect, setTempRect] = useState(null); // 临时矩形（预览用）
-  const [confirmedRects, setConfirmedRects] = useState([]); // 已确认的矩形
+  const [lines, setLines] = useState<Line[]>([]); // 所有绘制的线段
+
+  const [tempRect, setTempRect] = useState<Rect | null>(null); // 临时矩形（预览用）
+  const [confirmedRects, setConfirmedRects] = useState<Rect[]>([]); // 已确认的矩形
 
   // 记录所有点
-  const [point, setPoint] = useState([]);
+  const [point, setPoint] = useState<Point[]>([]);
 
-  const [tempLine, setTempLine] = useState<{
-    start: Point | null;
-    end: Point | null;
-  } | null>(null); // 临时线段（随鼠标移动）
+  // 临时线段（随鼠标移动）
+  const [tempLine, setTempLine] = useState<TempLine | null>(null);
 
   // 是否在编辑
   const [isEditing, setIsEditing] = useState(true);
@@ -71,7 +69,7 @@ const KLineFreeDraw = () => {
   const [editLineKey, setEditLineKey] = useState(-1);
 
   // 默认是线段
-  const [type, setType] = useState("line");
+  const [type, setType] = useState<Type>("line");
 
   // 4. 初始化图表
   useEffect(() => {
@@ -125,6 +123,7 @@ const KLineFreeDraw = () => {
 
   const { run } = useDebounceFn(
     (params) => {
+      if (!startPoint) return; // 未长按或无起点，不处理
       const { offsetX: x, offsetY: y } = params.event;
       if (type === "line") {
         setTempLine({
@@ -161,14 +160,13 @@ const KLineFreeDraw = () => {
   );
   // 鼠标移动：更新临时线段
   const handleMouseMove = (params) => {
-    if (!startPoint) return; // 未长按或无起点，不处理
     run(params);
   };
 
   // 5. 监听全局点击事件（任意位置点击都触发）
   useEffect(() => {
     if (!chartInstance.current) return;
-
+    // 监听是否点击了图
     const handleClickChart = (params) => {
       if (!isEditing) {
         if (params.componentType === "series" && params.seriesType === "line") {
@@ -178,7 +176,8 @@ const KLineFreeDraw = () => {
         return;
       }
     };
-    const handleClick = (params) => {
+    // 监听是否点击了画布
+    const handleClick = (params: ZRMouseEvent) => {
       if (!isEditing) {
         return;
       }
