@@ -39,8 +39,7 @@ const generateLine = (start: Point, end: Point, id?: string): Line => {
     },
     z: 10,
     style: {
-      fill: "transparent", // 空心圆
-      stroke: "#1890ff", // 圆边框颜色
+      stroke: "solid", // 空心圆
       lineWidth: 2,
     },
     coordinateSystem: null, // 像素级定位（不依赖坐标轴）

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { DeleteOutlined, HolderOutlined } from "@ant-design/icons";
 import { Popover } from "antd";
+import type { Line } from "./interface";
 const colors = [
   "#0000FF",
   "#008000",
@@ -27,17 +28,26 @@ const widths = [1, 2, 3, 4];
 
 const lineStyles = ["solid", "dashed", "dotted"];
 
+const lineDash = [
+  [5, 5],
+  [10, 5],
+  [5, 10],
+  [10, 5, 2, 5],
+];
+
 interface IndicatorProps {
   onDelete?: () => void;
-  onChangeStyle?: (style: string) => void;
+  onChangeStyle?: (style: number[]) => void;
   onChangeWidth?: (width: number) => void;
   onChangeColor?: (color: string) => void;
+  initialLine?: Line;
 }
 const Indicator = ({
   onDelete,
   onChangeStyle,
   onChangeWidth,
   onChangeColor,
+  initialLine,
 }: IndicatorProps) => {
   const ref = useRef(null);
 
@@ -96,6 +106,14 @@ const Indicator = ({
       window.removeEventListener("mouseup", handleMouseUp);
     };
   }, [isDrawing]);
+
+  useEffect(() => {
+    if (initialLine) {
+      setSelectedWidth(initialLine?.style?.lineWidth);
+      setSelectedColor(initialLine?.style?.stroke);
+      setSelectedStyle(initialLine?.style?.stroke);
+    }
+  }, [initialLine]);
   return (
     <div
       ref={ref}
@@ -230,11 +248,11 @@ const Indicator = ({
               flexDirection: "column",
             }}
           >
-            {lineStyles.map((lineStyle) => (
+            {lineStyles.map((lineStyle, index) => (
               <div
                 key={lineStyle}
                 onClick={() => {
-                  onChangeStyle?.(lineStyle);
+                  onChangeStyle?.(lineDash[index]);
                   setSelectedStyle(lineStyle);
                   setStyleOpen(false);
                 }}

@@ -78,6 +78,9 @@ const KLineFreeDraw = () => {
 
   const [hoveredLineId, setHoveredLineId] = useState<string | null>(null); // 当前悬浮的线段ID
 
+  // 当前点击的线段
+  const [selectedLineId, setSelectedLineId] = useState<string | null>(null);
+
   // 默认是线段
   const [type, setType] = useState<Type>("line");
 
@@ -194,10 +197,15 @@ const KLineFreeDraw = () => {
     // 监听是否点击了图
     const handleClickChart = (params: ECElementEvent) => {
       if (!isEditing) {
-        if (params.componentType === "series" && params.seriesType === "line") {
-          const seriesIndex = params.seriesIndex;
-        }
-        return;
+        let isSelectLine = false;
+        lines.forEach((line) => {
+          if (isPointNearLine(params, line)) {
+            setSelectedLineId(line.id); // 记录悬浮线段ID
+            isSelectLine = true;
+            return;
+          }
+        });
+        if (!isSelectLine) setSelectedLineId(null);
       }
     };
 
@@ -219,14 +227,19 @@ const KLineFreeDraw = () => {
 
         // 生成矩形
         if (type === "rect") {
-          setConfirmedRects((i) => [...i, { ...tempRect, id: uniqueId() }]);
+          setConfirmedRects((i) => [
+            ...i,
+            { ...tempRect, id: uniqueId() } as Rect,
+          ]);
           setTempRect(null);
         } else {
+          const id = uniqueId("line-");
           // 第二次点击：生成线段
-          const newLine = generateLine(startPoint, tempPoint);
+          const newLine = generateLine(startPoint, tempPoint, id);
           // 添加线段并清空起点
           setLines((prev) => [...prev, newLine]);
           setTempLine(null);
+          setSelectedLineId(id);
         }
       }
     };
@@ -361,30 +374,38 @@ const KLineFreeDraw = () => {
     setTempRect(null);
   };
 
+  const onChange = (value) => {
+    const data = lines.map((item) => {
+      if (item.id === selectedLineId) {
+        return {
+          ...item,
+          style: {
+            ...item.style,
+            ...value,
+          },
+        };
+      }
+      return item;
+    });
+    setLines(data);
+  };
+
   return (
     <div style={{ width: "100%", height: "100%", position: "relative" }}>
       <Indicator
+        initialLine={lines.find((item) => item.id === selectedLineId)}
         onDelete={() => {
           const temp = [...lines];
           setLines(temp);
         }}
         onChangeColor={(color) => {
-          const data = lines.map((item, index) => {
-            return item;
-          });
-          setLines(data);
+          onChange({ stroke: color });
         }}
         onChangeWidth={(width) => {
-          const data = lines.map((item, index) => {
-            return item;
-          });
-          setLines(data);
+          onChange({ lineWidth: width });
         }}
         onChangeStyle={(style) => {
-          const data = lines.map((item, index) => {
-            return item;
-          });
-          setLines(data);
+          onChange({ lineDash: style });
         }}
       />
       <div

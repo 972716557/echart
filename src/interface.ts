@@ -25,9 +25,9 @@ export interface Line {
   };
   z: number;
   style: {
-    fill: string; // 空心圆
+    lineWidth: number; // 空心圆
     stroke: string; // 圆边框颜色
-    lineWidth: number;
+    lineDash?: number[];
   };
   coordinateSystem: null;
 }
