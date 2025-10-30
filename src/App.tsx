@@ -22,6 +22,7 @@ import type {
   Line,
   TempLine,
   ChartClickParams,
+  OnChangeParams,
 } from "./interface";
 import { uniqueId } from "lodash";
 import LineIcon from "./assets/line";
@@ -177,7 +178,7 @@ const KLineFreeDraw = () => {
     run(params);
   };
 
-  const handleMouseChartMove = (params: ECElementEvent) => {
+  const handleMouseChartMove = (params: ChartClickParams) => {
     let isHovered = false;
     // 遍历所有线段，判断鼠标是否靠近
     lines.forEach((line) => {
@@ -194,22 +195,19 @@ const KLineFreeDraw = () => {
   // 5. 监听全局点击事件（任意位置点击都触发）
   useEffect(() => {
     if (!chartInstance.current) return;
-    // 监听是否点击了图
-    const handleClickChart = (params: ECElementEvent) => {
-      if (!isEditing) {
-        let isSelectLine = false;
-        lines.forEach((line) => {
-          if (isPointNearLine(params, line)) {
-            setSelectedLineId(line.id); // 记录悬浮线段ID
-            isSelectLine = true;
-            return;
-          }
-        });
-        if (!isSelectLine) setSelectedLineId(null);
-      }
-    };
 
     const handleClick = (params: ChartClickParams): void => {
+      let isSelectLine = false;
+      for (const line of lines) {
+        if (isPointNearLine(params, line)) {
+          setSelectedLineId(line.id);
+          isSelectLine = true;
+          return;
+        }
+      }
+
+      if (!isSelectLine) setSelectedLineId(null);
+
       if (!isEditing || !chartInstance.current) {
         return;
       }
@@ -247,13 +245,11 @@ const KLineFreeDraw = () => {
     const zr = chartInstance.current.getZr();
     // 绑定全局点击事件（图表内任何位置点击都会触发）
     zr.on("click", handleClick);
-    chartInstance.current.on("click", handleClickChart);
     zr.on("mousemove", handleMouseMove);
 
     return () => {
       zr?.off("click", handleClick);
       zr.off("mousemove", handleMouseMove);
-      chartInstance.current?.off("click", handleClickChart);
     };
   }, [startPoint, isEditing, tempRect, lines]);
 
@@ -295,7 +291,7 @@ const KLineFreeDraw = () => {
       },
     ];
 
-    const graphicElements = point?.map(generateCircle);
+    const graphicElements = point?.map((item) => generateCircle(item));
 
     const tempDotElement = tempLine
       ? [generateCircle(tempLine.end, "tempid")]
@@ -374,7 +370,7 @@ const KLineFreeDraw = () => {
     setTempRect(null);
   };
 
-  const onChange = (value) => {
+  const onChange = (value: OnChangeParams) => {
     const data = lines.map((item) => {
       if (item.id === selectedLineId) {
         return {

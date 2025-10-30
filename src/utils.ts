@@ -1,6 +1,5 @@
 import { uniqueId } from "lodash";
-import type { Line, Point } from "./interface";
-import type { ECElementEvent } from "echarts";
+import type { ChartClickParams, Line, Point } from "./interface";
 
 const generateRect = (data) => {
   const newRect = {
@@ -66,7 +65,7 @@ const generateCircle = (dot: { x: number; y: number }, id?: string) => ({
 });
 
 // 2. 辅助函数：判断鼠标是否靠近线段（碰撞检测）
-const isPointNearLine = (mouseParams: ECElementEvent, line: Line) => {
+const isPointNearLine = (mouseParams: ChartClickParams, line: Line) => {
   const { offsetX: mx, offsetY: my } = mouseParams; // 鼠标像素坐标
   const { x1, y1, x2, y2 } = line.shape;
 

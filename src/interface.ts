@@ -31,6 +31,11 @@ export interface Line {
   };
   coordinateSystem: null;
 }
+export type OnChangeParams = Partial<{
+  lineWidth: number; // 空心圆
+  stroke: string; // 圆边框颜色
+  lineDash?: number[];
+}>;
 
 export interface TempLine {
   start: Point;
