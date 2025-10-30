@@ -238,6 +238,7 @@ const KLineFreeDraw = () => {
           setLines((prev) => [...prev, newLine]);
           setTempLine(null);
           setSelectedLineId(id);
+          setHoveredLineId(id);
         }
       }
     };
@@ -311,6 +312,21 @@ const KLineFreeDraw = () => {
         ]
       : [];
 
+    const clickLine = lines.find((line) => line.id === selectedLineId);
+    const clickCircleElement = clickLine
+      ? [
+          generateCircle({ x: clickLine.shape.x1, y: clickLine.shape.y1 }),
+          generateCircle({ x: clickLine.shape.x2, y: clickLine.shape.y2 }),
+        ]
+      : [];
+
+    let showElements = [];
+    if (selectedLineId === hoveredLineId) {
+      showElements = clickCircleElement;
+    } else {
+      showElements = [...clickCircleElement, ...hoverCircleElement];
+    }
+
     // 2. 已确认的矩形
     const confirmedRectElements = confirmedRects.map(generateRect);
 
@@ -326,7 +342,7 @@ const KLineFreeDraw = () => {
             ...tempDotElement,
             ...confirmedRectElements,
             ...tempRectElement,
-            ...hoverCircleElement,
+            ...showElements,
           ],
         },
         series: newSeries,
@@ -358,6 +374,7 @@ const KLineFreeDraw = () => {
     confirmedRects,
     tempRect,
     hoveredLineId,
+    selectedLineId,
   ]);
 
   // 7. 清除所有线段
@@ -391,8 +408,11 @@ const KLineFreeDraw = () => {
       <Indicator
         initialLine={lines.find((item) => item.id === selectedLineId)}
         onDelete={() => {
-          const temp = [...lines];
-          setLines(temp);
+          if (selectedLineId) {
+            setLines(lines.filter((item) => item.id !== selectedLineId));
+            setSelectedLineId(null);
+            setPoint([]);
+          }
         }}
         onChangeColor={(color) => {
           onChange({ stroke: color });
